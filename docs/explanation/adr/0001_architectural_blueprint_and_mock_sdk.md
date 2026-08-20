@@ -80,6 +80,33 @@ We will implement the package layout under `src/ed_journal_sdk/`:
   * `writer.py`: Houses `MockJournalWriter` (interacts with the I/O adapter and engine).
   * `generator.py`: Mock value wrappers driving the engine.
 
+### 4.6 Public API Specification (Contract)
+We define the exact method signatures, types, and parameter names that constitute the SDK's public API contract:
+
+#### 1. TelemetryEngine (Core Logic Interface)
+* `def validate_line(self, jsonl_line: str, schema: dict = None) -> bool`:
+  * Validates a single JSONL line string. Returns `True` if valid, raises `ValidationError` in strict mode, or logs a warning in lenient mode.
+* `def generate_line(self, event_type: str, overrides: dict = None) -> str`:
+  * Returns a valid, serialized JSONL string for the specified event type. Applies overrides dynamically.
+* `def infer_schema(self, jsonl_line: str) -> dict`:
+  * Generates a draft JSON Schema representing the structure of the provided JSONL log line.
+
+#### 2. TelemetryWriter (Abstract Port Interface)
+* `def write_raw_line(self, file_path: Path, line: str) -> None`:
+  * Appends a raw string line directly to the specified file path.
+* `def overwrite_file(self, file_path: Path, content: str) -> None`:
+  * Overwrites the file at the specified file path with the content string.
+
+#### 3. MockJournalWriter (Simulation Facade Interface)
+* `def start_game(self, cmdr_name: str) -> None`:
+  * Starts the simulation. Triggers the creation of a new active journal log, writes `Fileheader`, `LoadGame`, and `Rank` start events, and opens target file streams.
+* `def write_event(self, event_type: str, overrides: dict = None) -> None`:
+  * Generates a formatted event string using `TelemetryEngine` and appends it to the active journal log via the `TelemetryWriter` adapter.
+* `def trigger_market_visit(self, market_id: int, commodities_data: list) -> None`:
+  * Simulates docking at a market. Appends a `Market` event to the active journal log and overwrites the JSS companion file `Market.json` using the `TelemetryWriter`.
+* `def stop_game(self) -> None`:
+  * Appends the `Shutdown` event to the journal log and cleans up open file handles.
+
 ---
 
 ## 5. Consequences
