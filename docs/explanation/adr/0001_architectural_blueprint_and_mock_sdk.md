@@ -18,60 +18,61 @@ ADR 0001: Architectural Blueprint and Mock SDK
 ---
 
 ## 3. Context
-We have separated the Elite Dangerous Journal/JSS SDK from the parent EDMarketConnector repository to manage its complexity independently and serve the broader developer community. We need to define the architectural blueprint for this new standalone library, specifying its package layout, Ports & Adapters boundaries, core methods, and a sample usage entry point.
+We have separated the Elite Dangerous Journal/JSS SDK from the parent EDMarketConnector repository to manage its complexity independently. We need to define the architectural blueprint for this new standalone library, specifically addressing the decoupling of file I/O operations from core telemetry generation, and detailing our class structures.
 
 ---
 
 ## 4. Decision
 
-### 4.1 Ports & Adapters Architecture
-We will implement the SDK using **Ports & Adapters (Hexagonal)** architecture, segregating our files under the package directory `src/ed_journal_sdk/`:
+### 4.1 Decoupling File I/O from Generation Logic
+To prevent filesystem dependencies from polluting the core SDK, we will isolate file I/O from the mock generation engine. 
+
+* **InMemoryGenerator (Core Engine):** 
+  * Responsible strictly for formatting and producing data in memory.
+  * Yields serialized JSONL strings, parsed dictionaries, or individual parameter values.
+  * Contains no filesystem dependencies, allowing rapid memory-only test executions.
+* **FileJournalWriter (I/O Adapter):**
+  * Responsible for actual filesystem operations.
+  * Consumes payloads from `InMemoryGenerator` and writes them as unbuffered binary appends to `Journal.log` files or overwrites snapshot files like `Market.json`.
+
+### 4.2 Ports & Adapters Architecture
+We will implement the package layout under `src/ed_journal_sdk/`:
 
 * **Core Domain (`src/ed_journal_sdk/domain/`):**
-  * Contains pure, dependency-free Python types and schemas.
-  * We will use **Pydantic Models** to declare schemas for all events (e.g. `FSDJump`, `Docked`) and JSS files (e.g. `Status`, `Market`).
-  * Exposes no filesystem, networking, or database calls.
+  * Houses pure Pydantic models matching the Player Journal v37 specification.
 * **Telemetry Adapter (`src/ed_journal_sdk/telemetry/`):**
-  * Implements ports for reading and validating telemetry data.
-  * Houses the log file watcher, log tailer, and JSS snapshot readers.
-  * Implements the **Dual-Severity Validator** (Strict mode for testing, Lenient mode for production runtimes).
+  * Houses the directory watchers and validators.
 * **Testing Simulator Adapter (`src/ed_journal_sdk/testing/`):**
-  * Implements ports for writing simulated game client data.
-  * Houses `MockJournalWriter` and `MockValueGenerator`.
-
-### 4.2 SDK Capabilities
-The SDK will provide third-party developers with three primary systems:
-1. **Mock Generator:** Creates simulated `Journal.log` files and JSS snapshots to test plugin events headlessly.
-2. **Schema Validator:** Checks generated JSON against the official Pydantic models to catch schema drift.
-3. **Local Ingestion Helpers:** Utilities to watch directory changes and parse logs.
+  * Houses `InMemoryGenerator`, `FileJournalWriter`, and `MockValueGenerator`.
 
 ### 4.3 Scratch Usage Blueprint
-We define the target developer usage API for the SDK. A scratch entry-point script (`scratch/simulate_gameplay.py`) will demonstrate these methods:
+We define the target developer usage API demonstrating the split between memory generation and file writing:
 
 ```python
 from pathlib import Path
-from ed_journal_sdk.testing import MockJournalWriter, MockValueGenerator
+from ed_journal_sdk.testing import InMemoryGenerator, FileJournalWriter
 
 def run_simulation() -> None:
-    # 1. Initialize the mock writer and value generator
-    output_directory = Path("./data/simulated")
-    writer = MockJournalWriter(output_dir=output_directory)
-    generator = MockValueGenerator()
+    # 1. Initialize Generator (In-Memory Only) and File Writer (Filesystem Adapter)
+    generator = InMemoryGenerator()
+    writer = FileJournalWriter(output_dir=Path("./data/simulated"))
 
-    # 2. Simulate game client launch (writes Fileheader, LoadGame, Rank, Progress)
+    # 2. Generate granular / primitive values
+    mock_coords = generator.generate_value("FSDJump", "StarPos") # Returns [12.5, -4.2, 300.1]
+    mock_jsonl = generator.generate_event_string("FSDJump", SystemName="Sol") # Returns JSONL string
+
+    # 3. Simulate game launch using the File Writer
     writer.start_game(cmdr_name="Cmdr Jameson")
 
-    # 3. Simulate sequential game events
-    # Writes event to active Journal Log
-    fsd_payload = generator.generate_fsd_jump_payload(system_name="LHS 3447")
-    writer.write_event("FSDJump", fsd_payload)
+    # 4. Simulate a log event
+    event_payload = generator.generate_event_payload("FSDJump")
+    writer.write_event("FSDJump", event_payload)
 
-    # 4. Simulate a station interaction involving JSS snapshots
-    # Performs a dual-write: appends Market event to log and overwrites Market.json in-place
-    market_payload = generator.generate_market_snapshot(market_id=12800100)
+    # 5. Simulate JSS snapshots (Dual-writes)
+    market_payload = generator.generate_event_payload("Market")
     writer.trigger_market_visit(market_id=12800100, commodities_data=market_payload)
 
-    # 5. Simulate closing the game client (appends Shutdown event and closes handles)
+    # 6. Stop game
     writer.stop_game()
 
 if __name__ == "__main__":
@@ -83,16 +84,15 @@ if __name__ == "__main__":
 ## 5. Consequences
 
 ### Positive:
-* **Decoupled Design:** Host applications can consume this SDK as a development library without cluttering their main repositories.
-* **Readable API:** The code examples establish a clear, concise method naming convention for developers to follow.
+* **Headless Speed:** Memory-only tests run in microseconds without triggering filesystem locks or I/O overhead.
+* **Clean Boundaries:** The generator can be easily adapted to feed network sockets or terminal print statements.
 
 ### Negative:
-* None. Establishing this blueprint guarantees consistency prior to the implementation phase.
+* Slightly more boilerplate to pass payloads between the generator and the file writer.
 
 ---
 
 ## 6. Procedure & Implementation
 
-1. **Scaffold Docs:** Create the Diataxis documentation directories.
-2. **Implement Core Scaffolding:** Create `src/ed_journal_sdk/` packages.
-3. **Write Scratch Example:** Create the `scratch/simulate_gameplay.py` script.
+1. **Implement Core Scaffolding:** Create `src/ed_journal_sdk/` packages.
+2. **Write Scratch Example:** Create the `scratch/simulate_gameplay.py` script.
