@@ -35,17 +35,17 @@ The engine operates as a bi-directional data translator:
 
 ```mermaid
 graph TD
-    subgraph Data-to-Schema (Inference)
+    subgraph "Data-to-Schema (Inference)"
         A[Raw JSONL Log Line] -->|Ingest| B(Telemetry Engine)
         B -->|Infer & Scrub| C[Sanitized JSON Schema]
     end
 
-    subgraph Schema-to-Data (Generation)
+    subgraph "Schema-to-Data (Generation)"
         D[JSON Schema / Pydantic Model] -->|Ingest| B
         B -->|Parse Types & Examples| E[Simulated JSONL Log Line]
     end
 
-    subgraph Validation
+    subgraph "Validation"
         F[Log Payload] -->|Compare| B
         B -->|Assert Types| G[Pass / Fail Warning]
     end
