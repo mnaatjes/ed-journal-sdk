@@ -32,14 +32,11 @@ We need to establish a metadata-driven pipeline that:
 ### 4.1 Schema-Driven Ingestion Pipeline
 We will implement an automated pipeline that consumes the JSON Schemas from the local directory structures:
 
-```text
-[ jixxed/schemas/<Event>/*.json ] 
-              |
-              v
-[ Pipeline: schema_compiler.py ] --(Compile & Resolve)--> [ Pydantic Model Code ]
-                                                                 |
-                                                                 v
-                                                      [ src/ed_journal_sdk/domain/models/ ]
+```mermaid
+graph TD
+    A["jixxed/schemas/&lt;Event&gt;/*.json"] -->|Ingest| B("Pipeline: schema_compiler.py")
+    B -->|Compile & Resolve| C("Pydantic Model Code")
+    C --> D["src/ed_journal_sdk/domain/models/"]
 ```
 
 1. **Schema Collation:** The pipeline script (`scripts/schema_compiler.py`) scans `/home/michael/src/github.com/jixxed/ed-journal-schemas/schemas/` to extract schema structures for each event.
