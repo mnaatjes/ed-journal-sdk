@@ -76,6 +76,38 @@
 
   > Note: Network Logic is an Infrastructure/Adapter concern.
 
+2. **Composition Root Pattern:** an Application Runtime pattern
+
+  * **Parts:** Typical Composition Root contains the following
+    - Bootstrapper (Gatekeeper): file or function which executes first; e.g. `src/ed_journal_sdk/__init__.py`
+    - Configurator (Settings Ingestion): Reads settings, CLI arguments, env vars, to determine which adapters to run
+    - Registry (Mappings): defines the rules that map Ports to concrete Adapters (e.g. binds interface to concrete class)
+    - Object-Graph Composer (Constructor): Instantiates objects in-order (topology sorting: base adapters first > injecting them into domain services)
+
+  * **Roles:**
+    - Instantiate the Object Graph: Constructs all objects from the outside; instead of classes instantiating own dependencies
+    - Injecting Dependencies (Wiring): Passes concrete instances into constructors of the consuming classes - satisfies Port protocols
+    - Managing Resource Lifecycles: Controls resources (e.g db-connect, file I/O) are open, shared (singletons), or safely closed via **Context Managers**
+      > Note: NOT limited to a single file. Distributed accross Ports and Adapters
+    - Responsible for implementing and distributing the **Mediator/Bus Pattern (Event Bus):**
+      1. Instantiate Event Bus mediator
+      2. Inject Event Bus into adapters so they can publish and subscribe to telemetry changes
+
+    > Note: Composition Root contains the Programmatic Entry Point AND the Execution Entry Point as part of its logic
+
+3. **Infrastructure Delivery Pipeline:**
+
+4. **Context Management Pattern:** in Python, resource lifecycles are professionally managed by Context Managers
+
+  * **Centrally Orchestrated:** via the Facade which has classes/methods which implement `__enter__` and `__exit__` and scope of `with` block
+
+  * **Contractually Distributed:** via Ports (define cleanup `close()`)
+
+  * **Physically Distributed:** via Adapters which implements its own specific cleanup logic
+
+5. **Mediator/Bus Pattern:** Decoupled Ports & Adapters need a way to communicate WITHOUT importing each-other
+
+
 ### Follow-up Questions
 
 ## API
@@ -144,3 +176,5 @@
 - Are there CI/CD tools to ensure we are developing a *Headless Architecture*?
 - Are theree CI/CD tools to aid in the development and organization of the SDK API?
 - Are Domain Exceptions leveraged in the CI/CD pipeline? Is it appropriate to integrate Business Rules into the CI/CD pipeline in this way?
+- How can we integrate and ensure Composition Root rules and practices are enforced (e.g. preventing classes from instantiating their own dependencies - see `Instantiate the Object Graph` from *Composition Root*?
+
