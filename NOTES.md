@@ -44,28 +44,63 @@
 
 ### Architecture of the SDK
 
-1. **Hexagonal Architecture (Ports & Adapters):** Segregates software into technology-agnostic *Core Domain*, abstract-boundaries, and implementation packages that interact with the physical operating environment
- 
-  * **Abstract Boundaries (Ports):** 
+1. **Hexagonal Architecture (Ports & Adapters):** Segregates software into technology-agnostic *Core Domain*, abstract-boundaries, and implementation packages that interact with the physical operating environment. Isolates Business-Logic from External Technologies.
 
-  * **Pluggable Implementation Packages (Adapters):**
+  * **Core Domain (Business Logic):** the Intellectual Center of the Software. Contains Business-Rules, Calculations, Data-Shapes, Entities.
+    - Contains Business Logic and other items which are TRUE regardless of how the application is run, deployed or stored.
+    - Independent of the web, filesystems, databases, or CLIs
+    - **Domains:**
+      * **Domain Models:** Models and Entities (Data Objects) with specific identity and validation rules (e.g. FSDJump)
+      * **Value Objects:** Immutable Attributes (e.g. StellarCoordinates)
+      * **Domain Services:** Functions containing calculations that don't naturally belong to a single entity (e.g. `calculate_3d_coordinates()`)
+      * **Domain Exceptions:** Error definitions representing Business-Logic Violations
+    - [ ] Define each of these for our SDK FIRST
 
-  * **Physical Operating Environment (Infrastructure):**
+  * **Abstract Boundaries (Ports):** Interfaces or Contracts defined *Strictly* inside the Core Domain layer. 
+    - Define WHAT actions the system does to perform (e.g. write a string, read a byte-offset.
+    - Contain ZERO implementation details
+    - Defined using Python *Abstract Base Classes* ABC or *Structural Typing Protocols* (e.g. typing.protocol)
+    - e.g. TelemetryWriter class: a port defining how telemetry payloads are exported
+
+  * **Pluggable Implementation Packages (Adapters):** Concrete Classes written OUTSIDE the Core Domain layer
+    - Implement Port Interfaces
+    - Translate core demands into technology-specific actions
+    - Fulfills the Contract defined by the Port
+    - Act as *plugs* which connect the Core Layer to the Outside World
+    - e.g. FileJournalIO class is the adapter implementing local file writes; the concrete implementation of the Port 
+
+  * **Physical Operating Environment (Infrastructure):** Represents the 3rd-party Software, file-hardware, OS, DBs that Concrete Adapters talk to
+    - Domain has ZERO knowledge of the Infrastructure Layer
+    - Typically constructed by leveraging 3rd-party libraries or standard Python modules; e.g. `import os` or `import pathlib`
+    - e.g. Linux Filesystem or Windows file locking mechanisms
+
+  > Note: Network Logic is an Infrastructure/Adapter concern.
 
 ### Follow-up Questions
 
-- What is the difference between *SDK Tooling* and the code-base? They seem conceptually seperate: e.g. *Telemetry Adapter* (internal code) vs the *Dynamic Watcher* (tooling)
-- IS there a difference between *Ports*, *Infrastructure*, and *Adapters*?
-- It seems that SDK Tooling is the front-facing collection of methods, classes, etc - the facade?
-- How are these differences manifested in the directory structure, architecture, coding patterns?
-
 ## API
 
-- Where does an API fit in the SDK?
-- Is the API meant to contain, encapsulate, and/or perform the *Network Logic* of the application?
-- Can an SDK - or this SDK - be developed "API First" or around an API instead of a CLI - then a CLI can be placed on-top as a pre-packaged method of communicating with the API?
-- How do the API and DI Container infrastructure interact?
-- Is the API part of the Developer Experience or some-other category?
+1. **API as a Facade Contract:** in an SDK, "API" refers to the public-facing python classes, methods, functions exposed to the dev-consumer
+
+  * **Method Signatures** are explicit Python signatures containing parameters and types and return annotations
+
+  * **Programamtic Entry Point:** the physical representation of the API/Facade Layer
+    - Location: `src/ed_journal_sdk/__init__.py` root gatekeeper; which allows for `import ed_journal_sdk`
+    - Exploses public models, classes, and methods and Facade Classes
+    - Developed First: used BY other things like the Execution Entry Point
+
+  * **Execution Entry Point:** Exposes the CLI
+    - Location: `src/ed_jouranl_sdk/__main__.py`
+    - Module execution command `python -m ed_journal_sdk`
+    - Developed Second: Uses Programmatic Entry Point
+
+2. **API First Design:** A pattern where one designs the Public Program Interfaces (method names, parameter types, returns) BEFORE writing execution code
+
+  - Represents the *Outer Shell* of the Hexagon
+  - [ ] Implement the API/Core **Design Cycle:** 
+    1. Define Core Domain models (data-structures)
+    2. Define Public Program Interfaces (API Methods) that accept and run models from step 1
+    3. Implement the internal adapters which do the work
 
 ## How to prioritize Developer Experience?
 
@@ -108,3 +143,4 @@
 
 - Are there CI/CD tools to ensure we are developing a *Headless Architecture*?
 - Are theree CI/CD tools to aid in the development and organization of the SDK API?
+- Are Domain Exceptions leveraged in the CI/CD pipeline? Is it appropriate to integrate Business Rules into the CI/CD pipeline in this way?
